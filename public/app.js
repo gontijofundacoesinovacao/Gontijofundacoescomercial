@@ -1,6 +1,15 @@
 const healthButton = document.getElementById("healthButton");
 const pdfButton = document.getElementById("pdfButton");
 const weeklyButton = document.getElementById("weeklyButton");
+const weeklyCsvButton = document.getElementById("weeklyCsvButton");
+const dailyTabButton = document.getElementById("dailyTabButton");
+const dashboardTabButton = document.getElementById("dashboardTabButton");
+const subtabOverviewButton = document.getElementById("subtabOverviewButton");
+const subtabMachinesButton = document.getElementById("subtabMachinesButton");
+const subtabQualityButton = document.getElementById("subtabQualityButton");
+const subtabTimelineButton = document.getElementById("subtabTimelineButton");
+const dailyTab = document.getElementById("dailyTab");
+const dashboardTab = document.getElementById("dashboardTab");
 const healthStatus = document.getElementById("healthStatus");
 const searchForm = document.getElementById("searchForm");
 const resultBox = document.getElementById("resultBox");
@@ -15,9 +24,31 @@ const detailHeader = document.getElementById("detailHeader");
 const detailHint = document.getElementById("detailHint");
 const detailSlicesBody = document.getElementById("detailSlicesBody");
 const dashboardSection = document.getElementById("dashboardSection");
+const dashboardOverviewSection = document.getElementById("dashboardOverviewSection");
+const dashboardQualitySection = document.getElementById("dashboardQualitySection");
+const dashboardTimelineSection = document.getElementById("dashboardTimelineSection");
+const dashboardOverviewMeta = document.getElementById("dashboardOverviewMeta");
 const dashboardMeta = document.getElementById("dashboardMeta");
 const dashboardHint = document.getElementById("dashboardHint");
 const dashboardGrid = document.getElementById("dashboardGrid");
+const dashboardSelectionMeta = document.getElementById("dashboardSelectionMeta");
+const dashboardStats = document.getElementById("dashboardStats");
+const rankingTableBody = document.getElementById("rankingTableBody");
+const weeklyOverviewChartCanvas = document.getElementById("weeklyOverviewChart");
+const cumulativeChartCanvas = document.getElementById("cumulativeChart");
+const obraChartCanvas = document.getElementById("obraChart");
+const alertsList = document.getElementById("alertsList");
+const contractTableBody = document.getElementById("contractTableBody");
+const contractTableBodyDetailed = document.getElementById("contractTableBodyDetailed");
+const heatmapGrid = document.getElementById("heatmapGrid");
+const boxplotList = document.getElementById("boxplotList");
+const timelineList = document.getElementById("timelineList");
+const timelineListDetailed = document.getElementById("timelineListDetailed");
+const concreteTableBody = document.getElementById("concreteTableBody");
+const qualityList = document.getElementById("qualityList");
+const qualityMeta = document.getElementById("qualityMeta");
+const timelineMeta = document.getElementById("timelineMeta");
+const dashboardMachineFilter = document.getElementById("dashboardMachineFilter");
 const machineSelect = document.getElementById("machineSelect");
 const machinesEditor = document.getElementById("machinesEditor");
 const saveMachinesButton = document.getElementById("saveMachinesButton");
@@ -27,6 +58,8 @@ const clientLoginInput = document.getElementById("clientLogin");
 const imeiInput = document.getElementById("imei");
 const dateInput = document.getElementById("date");
 const weekInput = document.getElementById("weekInput");
+const obraFilterInput = document.getElementById("obraFilterInput");
+const contratoFilterInput = document.getElementById("contratoFilterInput");
 
 const DEFAULT_MACHINES = [
   { name: "HTC-03", imei: "356308047707200" },
@@ -61,6 +94,10 @@ function setResult(data) {
 }
 
 const dashboardCharts = [];
+let weeklyOverviewChart = null;
+let cumulativeChart = null;
+let obraChart = null;
+let lastDashboardData = null;
 
 function serializeMachines(machines) {
   return machines.map((item) => `${item.name}=${item.imei}`).join("\n");
@@ -101,6 +138,27 @@ function renderMachineOptions(machines) {
         `<option value="${escapeHtml(item.imei)}">${escapeHtml(item.name)} | ${escapeHtml(item.imei)}</option>`
     )
     .join("");
+}
+
+function renderDashboardMachineFilter(machines) {
+  dashboardMachineFilter.innerHTML = machines
+    .map(
+      (item) => `
+        <label class="machine-check">
+          <input type="checkbox" class="dashboard-machine-checkbox" value="${escapeHtml(item.imei)}" checked />
+          <span>${escapeHtml(item.name)}</span>
+          <small>${escapeHtml(item.imei)}</small>
+        </label>
+      `
+    )
+    .join("");
+  dashboardSelectionMeta.textContent = `${machines.length} maquina(s) selecionada(s).`;
+}
+
+function selectedDashboardMachines() {
+  const machines = loadMachines();
+  const selectedImeis = [...document.querySelectorAll(".dashboard-machine-checkbox:checked")].map((input) => input.value);
+  return machines.filter((item) => selectedImeis.includes(item.imei));
 }
 
 function syncSelectedMachineFromImei(machines) {
@@ -157,17 +215,249 @@ function destroyDashboardCharts() {
   }
 }
 
+function destroyOverviewChart() {
+  if (weeklyOverviewChart) {
+    weeklyOverviewChart.destroy();
+    weeklyOverviewChart = null;
+  }
+}
+
+function destroyAuxCharts() {
+  if (cumulativeChart) {
+    cumulativeChart.destroy();
+    cumulativeChart = null;
+  }
+  if (obraChart) {
+    obraChart.destroy();
+    obraChart = null;
+  }
+}
+
+function switchTab(mode) {
+  const isDaily = mode === "daily";
+  dailyTab.classList.toggle("is-active", isDaily);
+  dashboardTab.classList.toggle("is-active", !isDaily);
+  dailyTabButton.classList.toggle("is-active", isDaily);
+  dashboardTabButton.classList.toggle("is-active", !isDaily);
+}
+
+function switchDashboardSubtab(mode) {
+  const config = [
+    { key: "overview", button: subtabOverviewButton, panel: dashboardOverviewSection },
+    { key: "machines", button: subtabMachinesButton, panel: dashboardSection },
+    { key: "quality", button: subtabQualityButton, panel: dashboardQualitySection },
+    { key: "timeline", button: subtabTimelineButton, panel: dashboardTimelineSection },
+  ];
+
+  config.forEach((item) => {
+    const isActive = item.key === mode;
+    item.button?.classList.toggle("is-active", isActive);
+    item.panel?.classList.toggle("is-active", isActive);
+    item.panel?.classList.toggle("is-hidden", !isActive);
+  });
+}
+
 function resetDashboard() {
   destroyDashboardCharts();
+  destroyOverviewChart();
+  destroyAuxCharts();
   dashboardGrid.innerHTML = "";
+  dashboardStats.innerHTML = "";
+  rankingTableBody.innerHTML = "";
+  contractTableBody.innerHTML = "";
+  contractTableBodyDetailed.innerHTML = "";
+  alertsList.innerHTML = "";
+  heatmapGrid.innerHTML = "";
+  boxplotList.innerHTML = "";
+  timelineList.innerHTML = "";
+  timelineListDetailed.innerHTML = "";
+  concreteTableBody.innerHTML = "";
+  qualityList.innerHTML = "";
   dashboardSection.classList.add("is-hidden");
+  dashboardOverviewSection.classList.add("is-hidden");
+  dashboardQualitySection.classList.add("is-hidden");
+  dashboardTimelineSection.classList.add("is-hidden");
+  dashboardOverviewMeta.textContent = "Nenhum resumo gerado.";
   dashboardMeta.textContent = "Nenhum dashboard gerado.";
   dashboardHint.textContent = "Selecione uma semana e clique em buscar.";
+  qualityMeta.textContent = "Nenhuma analise gerada.";
+  timelineMeta.textContent = "Nenhuma timeline gerada.";
+  switchDashboardSubtab("overview");
+}
+
+function buildDelta(current, previous) {
+  if (!previous) return "sem base";
+  const delta = ((current - previous) / previous) * 100;
+  const prefix = delta > 0 ? "+" : "";
+  return `${prefix}${formatDecimal(delta, 1)}%`;
+}
+
+function renderAlerts(alerts) {
+  alertsList.innerHTML = alerts.length
+    ? alerts
+        .map(
+          (alert) => `
+            <article class="alert-card ${alert.type}">
+              <strong>${escapeHtml(alert.machine || "Geral")}</strong>
+              <p>${escapeHtml(alert.message)}</p>
+            </article>
+          `
+        )
+        .join("")
+    : `<p class="muted">Nenhum alerta relevante para os filtros atuais.</p>`;
+}
+
+function renderHeatmap(data) {
+  heatmapGrid.innerHTML = "";
+  const header = document.createElement("div");
+  header.className = "heatmap-row heatmap-header";
+  header.innerHTML = `<span class="heatmap-machine">Maquina</span>${data.weekDates.map((date) => `<span>${escapeHtml(date.slice(5))}</span>`).join("")}`;
+  heatmapGrid.appendChild(header);
+
+  data.heatmap.forEach((row) => {
+    const maxMeters = Math.max(...row.cells.map((cell) => cell.meters), 0);
+    const el = document.createElement("div");
+    el.className = "heatmap-row";
+    el.innerHTML = `
+      <span class="heatmap-machine">${escapeHtml(row.machine)}</span>
+      ${row.cells
+        .map((cell) => {
+          const intensity = maxMeters > 0 ? cell.meters / maxMeters : 0;
+          const background = `rgba(31, 107, 79, ${0.12 + intensity * 0.78})`;
+          return `<span class="heatmap-cell" style="background:${background}">${escapeHtml(cell.count)}</span>`;
+        })
+        .join("")}
+    `;
+    heatmapGrid.appendChild(el);
+  });
+}
+
+function renderBoxplot(list) {
+  const maxValue = Math.max(...list.map((item) => item.max || 0), 1);
+  boxplotList.innerHTML = list
+    .map((item) => {
+      const scale = (value) => `${((value || 0) / maxValue) * 100}%`;
+      return `
+        <article class="boxplot-item">
+          <div class="boxplot-head">
+            <strong>${escapeHtml(item.machine)}</strong>
+            <span>${escapeHtml(formatDecimal(item.median, 2))} m</span>
+          </div>
+          <div class="boxplot-track">
+            <span class="boxplot-range" style="left:${scale(item.min)}; width:calc(${scale(item.max)} - ${scale(item.min)})"></span>
+            <span class="boxplot-box" style="left:${scale(item.q1)}; width:calc(${scale(item.q3)} - ${scale(item.q1)})"></span>
+            <span class="boxplot-median" style="left:${scale(item.median)}"></span>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderTimeline(target, items) {
+  target.innerHTML = items.length
+    ? items
+        .map(
+          (item) => `
+            <article class="timeline-item">
+              <div class="timeline-time">${escapeHtml(`${item.date} ${item.finishedAt}`)}</div>
+              <div class="timeline-body">
+                <strong>${escapeHtml(item.machine)} | ${escapeHtml(item.estaca)}</strong>
+                <span>${escapeHtml(`${item.obra} | ${item.contrato} | ${formatDecimal(item.realizadoM, 2)} m`)}</span>
+              </div>
+            </article>
+          `
+        )
+        .join("")
+    : `<p class="muted">Nenhuma estaca no periodo filtrado.</p>`;
+}
+
+function renderContracts(target, items) {
+  target.innerHTML = items
+    .slice(0, 10)
+    .map(
+      (item) => `
+        <tr>
+          <td>${escapeHtml(item.name)}</td>
+          <td>${escapeHtml(formatDecimal(item.meters, 2))}</td>
+          <td>${escapeHtml(item.count)}</td>
+        </tr>
+      `
+    )
+    .join("");
+}
+
+function renderQuality(data) {
+  const activeMachines = [...(data.machines || [])]
+    .filter((item) => item.weeklyTotalCount > 0)
+    .sort((a, b) => b.weeklyTotalMeters - a.weeklyTotalMeters);
+
+  qualityMeta.textContent = activeMachines.length
+    ? `${activeMachines.length} maquina(s) com leitura de concreto e indicadores tecnicos na semana.`
+    : "Nenhuma maquina com producao para analisar.";
+
+  concreteTableBody.innerHTML = activeMachines.length
+    ? activeMachines
+        .map((report) => `
+          <tr>
+            <td>${escapeHtml(report.machine.name)}</td>
+            <td>${escapeHtml(formatDecimal(report.quality?.avgConcreteLiters || 0, 0))}</td>
+            <td>${escapeHtml(formatDecimal(report.quality?.avgPressureBar || 0, 1))} bar</td>
+            <td>${escapeHtml(formatDecimal(report.operations?.avgConcretingDurationMin || 0, 1))} min</td>
+          </tr>
+        `)
+        .join("")
+    : `<tr><td colspan="4" class="muted">Nenhuma leitura de concreto disponivel para os filtros atuais.</td></tr>`;
+
+  const concreteInsights = [];
+
+  activeMachines.forEach((report) => {
+    const pressure = report.quality?.avgPressureBar || 0;
+    const concreteLiters = report.quality?.avgConcreteLiters || 0;
+    const concretingMinutes = report.operations?.avgConcretingDurationMin || 0;
+    const torque = report.quality?.avgTorqueBar || 0;
+    const rotation = report.quality?.avgRotationRpm || 0;
+    const inclination = report.quality?.avgInclination || 0;
+    const outOfLimit = report.quality?.outOfInclinationLimit || 0;
+
+    concreteInsights.push({
+      type: pressure > 15 ? "warning" : "info",
+      machine: report.machine.name,
+      message: `Pressao media ${formatDecimal(pressure, 1)} bar | Concreto ${formatDecimal(concreteLiters, 0)} L/estaca | Concretagem ${formatDecimal(concretingMinutes, 1)} min.`,
+    });
+    concreteInsights.push({
+      type: outOfLimit > 0 ? "danger" : "info",
+      machine: report.machine.name,
+      message: `Torque medio ${formatDecimal(torque, 1)} bar | Rotacao media ${formatDecimal(rotation, 1)} rpm | Inclinacao media ${formatDecimal(inclination, 1)} | Fora do limite: ${outOfLimit}.`,
+    });
+  });
+
+  qualityList.innerHTML = concreteInsights.length
+    ? concreteInsights
+        .map(
+          (item) => `
+            <article class="alert-card ${item.type}">
+              <strong>${escapeHtml(item.machine)}</strong>
+              <p>${escapeHtml(item.message)}</p>
+            </article>
+          `
+        )
+        .join("")
+    : `<p class="muted">Sem dados tecnicos suficientes para montar a analise de concreto.</p>`;
 }
 
 function renderDashboard(data) {
   destroyDashboardCharts();
+  destroyOverviewChart();
   dashboardGrid.innerHTML = "";
+  dashboardStats.innerHTML = "";
+  rankingTableBody.innerHTML = "";
+  contractTableBody.innerHTML = "";
+  contractTableBodyDetailed.innerHTML = "";
+  timelineList.innerHTML = "";
+  timelineListDetailed.innerHTML = "";
+  concreteTableBody.innerHTML = "";
+  qualityList.innerHTML = "";
 
   if (!data.machines?.length) {
     dashboardSection.classList.remove("is-hidden");
@@ -177,10 +467,217 @@ function renderDashboard(data) {
   }
 
   dashboardSection.classList.remove("is-hidden");
-  dashboardMeta.textContent = `${data.machines.length} maquina(s) analisada(s) na semana iniciada em ${data.weekStart}.`;
-  dashboardHint.textContent = "Barras: metragem realizada por dia. Linha: quantidade de estacas por dia.";
+  dashboardOverviewSection.classList.remove("is-hidden");
+  const sortedMachines = [...data.machines].sort((a, b) => b.weeklyTotalMeters - a.weeklyTotalMeters);
+  const activeMachineReports = sortedMachines.filter((item) => item.weeklyTotalCount > 0);
+  const inactiveMachineCount = sortedMachines.length - activeMachineReports.length;
 
-  data.machines.forEach((report, index) => {
+  dashboardMeta.textContent = `${activeMachineReports.length} maquina(s) com producao na semana iniciada em ${data.weekStart}.`;
+  dashboardOverviewMeta.textContent = `Cliente ${data.clientLogin} | Semana de ${data.weekDates[0]} a ${data.weekDates[data.weekDates.length - 1]}`;
+  dashboardHint.textContent =
+    inactiveMachineCount > 0
+      ? `Barras: metragem realizada por dia. Linha: quantidade de estacas por dia. ${inactiveMachineCount} maquina(s) sem producao foram ocultadas desta grade.`
+      : "Barras: metragem realizada por dia. Linha: quantidade de estacas por dia.";
+
+  const overallMeters = data.machines.reduce((sum, item) => sum + item.weeklyTotalMeters, 0);
+  const overallCount = data.machines.reduce((sum, item) => sum + item.weeklyTotalCount, 0);
+  const activeMachines = activeMachineReports.length;
+  const averagePerMachine = activeMachines ? overallMeters / activeMachines : 0;
+
+  dashboardStats.innerHTML = [
+    ["Metros da semana", `${formatDecimal(overallMeters, 2)} m`],
+    ["Estacas da semana", String(overallCount)],
+    ["Maquinas ativas", String(activeMachines)],
+    ["Media por maquina", `${formatDecimal(averagePerMachine, 2)} m`],
+    ["Vs semana anterior", buildDelta(overallMeters, data.previousTotals?.meters)],
+    ["Estacas vs anterior", buildDelta(overallCount, data.previousTotals?.count)],
+  ]
+    .map(
+      ([label, value]) => `
+        <article class="stat-card">
+          <span>${escapeHtml(label)}</span>
+          <strong>${escapeHtml(value)}</strong>
+        </article>
+      `
+    )
+    .join("");
+
+  renderAlerts(data.alerts || []);
+  renderHeatmap(data);
+  renderBoxplot(data.boxplot || []);
+  renderTimeline(timelineList, data.timeline || []);
+  renderTimeline(timelineListDetailed, data.timeline || []);
+  renderContracts(contractTableBody, data.contratoTotals || []);
+  renderContracts(contractTableBodyDetailed, data.contratoTotals || []);
+  renderQuality(data);
+  timelineMeta.textContent = `${(data.timeline || []).length} evento(s) na linha do tempo para a semana filtrada.`;
+
+  const dailyLabels = data.weekDates.map((date) => date.slice(5));
+  const dailyMeters = data.weekDates.map((date) =>
+    data.machines.reduce((sum, machine) => sum + (machine.daily.find((d) => d.date === date)?.totalMeters || 0), 0)
+  );
+  const dailyCounts = data.weekDates.map((date) =>
+    data.machines.reduce((sum, machine) => sum + (machine.daily.find((d) => d.date === date)?.totalCount || 0), 0)
+  );
+
+  weeklyOverviewChart = new Chart(weeklyOverviewChartCanvas, {
+    type: "bar",
+    data: {
+      labels: dailyLabels,
+      datasets: [
+        {
+          type: "bar",
+          label: "Metros executados",
+          data: dailyMeters.map((value) => Number(value.toFixed(2))),
+          backgroundColor: [
+            "rgba(31, 107, 79, 0.88)",
+            "rgba(52, 138, 102, 0.88)",
+            "rgba(84, 165, 126, 0.88)",
+            "rgba(114, 184, 149, 0.88)",
+            "rgba(146, 199, 171, 0.88)",
+            "rgba(177, 215, 194, 0.88)",
+            "rgba(207, 230, 217, 0.88)",
+          ],
+          borderColor: "#184f3b",
+          borderWidth: 1,
+          borderRadius: 12,
+          borderSkipped: false,
+          barThickness: 28,
+          yAxisID: "y",
+        },
+        {
+          type: "line",
+          label: "Estacas executadas",
+          data: dailyCounts,
+          borderColor: "#c96a2d",
+          backgroundColor: "rgba(201, 106, 45, 0.18)",
+          fill: true,
+          tension: 0.35,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: "#fff7ef",
+          pointBorderColor: "#c96a2d",
+          pointBorderWidth: 2,
+          borderWidth: 3,
+          yAxisID: "y1",
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: "bottom",
+          labels: {
+            usePointStyle: true,
+            boxWidth: 10,
+            padding: 18,
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: "#5f6d64" },
+        },
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: "Metros" },
+          grid: { color: "rgba(31, 42, 36, 0.08)" },
+          ticks: { color: "#5f6d64" },
+        },
+        y1: {
+          beginAtZero: true,
+          position: "right",
+          grid: { drawOnChartArea: false },
+          ticks: { precision: 0 },
+          title: { display: true, text: "Estacas" },
+        },
+      },
+    },
+  });
+
+  const cumulativeMeters = [];
+  dailyMeters.reduce((acc, value, index) => {
+    const next = acc + value;
+    cumulativeMeters[index] = Number(next.toFixed(2));
+    return next;
+  }, 0);
+
+  cumulativeChart = new Chart(cumulativeChartCanvas, {
+    type: "line",
+    data: {
+      labels: dailyLabels,
+      datasets: [
+        {
+          label: "Metros acumulados",
+          data: cumulativeMeters,
+          borderColor: "#1d6b50",
+          backgroundColor: "rgba(29, 107, 80, 0.18)",
+          fill: true,
+          tension: 0.3,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: "#fff",
+          pointBorderWidth: 2,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+      },
+      scales: {
+        x: { grid: { display: false } },
+        y: { beginAtZero: true, grid: { color: "rgba(31, 42, 36, 0.08)" } },
+      },
+    },
+  });
+
+  obraChart = new Chart(obraChartCanvas, {
+    type: "bar",
+    data: {
+      labels: (data.obraTotals || []).slice(0, 8).map((item) => item.name),
+      datasets: [
+        {
+          label: "Metros",
+          data: (data.obraTotals || []).slice(0, 8).map((item) => Number(item.meters.toFixed(2))),
+          backgroundColor: "rgba(99, 154, 125, 0.88)",
+          borderRadius: 10,
+          borderSkipped: false,
+        },
+      ],
+    },
+    options: {
+      indexAxis: "y",
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { beginAtZero: true, grid: { color: "rgba(31, 42, 36, 0.08)" } },
+        y: { grid: { display: false } },
+      },
+    },
+  });
+
+  rankingTableBody.innerHTML = [...data.machines]
+    .sort((a, b) => b.weeklyTotalMeters - a.weeklyTotalMeters)
+    .slice(0, 10)
+    .map(
+      (report, index) => `
+        <tr>
+          <td>${escapeHtml(`${index + 1}. ${report.machine.name}`)}</td>
+          <td>${escapeHtml(formatDecimal(report.weeklyTotalMeters, 2))}</td>
+          <td>${escapeHtml(report.weeklyTotalCount)}</td>
+        </tr>
+      `
+    )
+    .join("");
+
+  activeMachineReports.forEach((report, index) => {
     const card = document.createElement("article");
     card.className = "dashboard-card";
     card.innerHTML = `
@@ -192,6 +689,7 @@ function renderDashboard(data) {
         <div class="dashboard-kpis">
           <div><strong>${escapeHtml(formatDecimal(report.weeklyTotalMeters, 2))} m</strong><span>Total semana</span></div>
           <div><strong>${escapeHtml(report.weeklyTotalCount)}</strong><span>Estacas</span></div>
+          <div><strong>${escapeHtml(formatDecimal(report.weeklyTotalCount ? report.weeklyTotalMeters / report.weeklyTotalCount : 0, 2))} m</strong><span>Media por estaca</span></div>
         </div>
       </div>
       <canvas id="dashboardChart${index}" height="120"></canvas>
@@ -208,25 +706,37 @@ function renderDashboard(data) {
       data: {
         labels,
         datasets: [
-          {
-            type: "bar",
-            label: "Realizado (m)",
-            data: meters,
-            backgroundColor: "rgba(31, 107, 79, 0.72)",
-            borderRadius: 8,
-            yAxisID: "y",
-          },
-          {
-            type: "line",
-            label: "Estacas",
-            data: counts,
-            borderColor: "#b85c38",
-            backgroundColor: "#b85c38",
-            tension: 0.35,
-            pointRadius: 4,
-            yAxisID: "y1",
-          },
-        ],
+        {
+          type: "bar",
+          label: "Realizado (m)",
+          data: meters,
+          backgroundColor: labels.map((_, labelIndex) =>
+            labelIndex % 2 === 0 ? "rgba(26, 95, 71, 0.84)" : "rgba(75, 154, 118, 0.84)"
+          ),
+          borderColor: "#184f3b",
+          borderWidth: 1,
+          borderRadius: 10,
+          borderSkipped: false,
+          barThickness: 22,
+          yAxisID: "y",
+        },
+        {
+          type: "line",
+          label: "Estacas",
+          data: counts,
+          borderColor: "#bd6a39",
+          backgroundColor: "rgba(189, 106, 57, 0.15)",
+          fill: true,
+          tension: 0.35,
+          pointRadius: 4,
+          pointHoverRadius: 5,
+          pointBackgroundColor: "#fff7ef",
+          pointBorderColor: "#bd6a39",
+          pointBorderWidth: 2,
+          borderWidth: 3,
+          yAxisID: "y1",
+        },
+      ],
       },
       options: {
         responsive: true,
@@ -234,12 +744,23 @@ function renderDashboard(data) {
         plugins: {
           legend: {
             position: "bottom",
+            labels: {
+              usePointStyle: true,
+              boxWidth: 10,
+              padding: 16,
+            },
           },
         },
         scales: {
+          x: {
+            grid: { display: false },
+            ticks: { color: "#5f6d64" },
+          },
           y: {
             beginAtZero: true,
             title: { display: true, text: "Metros" },
+            grid: { color: "rgba(31, 42, 36, 0.08)" },
+            ticks: { color: "#5f6d64" },
           },
           y1: {
             beginAtZero: true,
@@ -254,6 +775,8 @@ function renderDashboard(data) {
 
     dashboardCharts.push(chart);
   });
+
+  switchDashboardSubtab("overview");
 }
 
 function formatSize(bytes) {
@@ -403,7 +926,17 @@ function currentSearchParams() {
 const initialMachines = loadMachines();
 refreshMachinesUi(initialMachines, false);
 syncSelectedMachineFromImei(initialMachines);
+renderDashboardMachineFilter(initialMachines);
 weekInput.value = getWeekValueFromDate(dateInput.value);
+switchTab("daily");
+switchDashboardSubtab("overview");
+
+dailyTabButton.addEventListener("click", () => switchTab("daily"));
+dashboardTabButton.addEventListener("click", () => switchTab("dashboard"));
+subtabOverviewButton.addEventListener("click", () => switchDashboardSubtab("overview"));
+subtabMachinesButton.addEventListener("click", () => switchDashboardSubtab("machines"));
+subtabQualityButton.addEventListener("click", () => switchDashboardSubtab("quality"));
+subtabTimelineButton.addEventListener("click", () => switchDashboardSubtab("timeline"));
 
 healthButton.addEventListener("click", async () => {
   healthStatus.textContent = "Testando...";
@@ -539,12 +1072,14 @@ saveMachinesButton.addEventListener("click", () => {
 
   saveMachines(machines);
   refreshMachinesUi(machines);
+  renderDashboardMachineFilter(machines);
   machineStatus.textContent = `${machines.length} maquina(s) salva(s) no navegador.`;
 });
 
 resetMachinesButton.addEventListener("click", () => {
   saveMachines(DEFAULT_MACHINES);
   refreshMachinesUi(DEFAULT_MACHINES);
+  renderDashboardMachineFilter(DEFAULT_MACHINES);
   machineStatus.textContent = "Lista padrao restaurada.";
 });
 
@@ -554,7 +1089,8 @@ dateInput.addEventListener("change", () => {
 
 weeklyButton.addEventListener("click", async () => {
   const weekStart = getWeekStartFromWeekInput(weekInput.value);
-  const machines = loadMachines();
+  const machines = selectedDashboardMachines();
+  dashboardSelectionMeta.textContent = `${machines.length} maquina(s) selecionada(s).`;
 
   if (!weekStart) {
     dashboardSection.classList.remove("is-hidden");
@@ -580,6 +1116,8 @@ weeklyButton.addEventListener("click", async () => {
         clientLogin: clientLoginInput.value.trim(),
         weekStart,
         machines,
+        obraFilter: obraFilterInput.value.trim(),
+        contratoFilter: contratoFilterInput.value.trim(),
       }),
     });
     const data = await response.json();
@@ -591,6 +1129,8 @@ weeklyButton.addEventListener("click", async () => {
     }
 
     renderDashboard(data);
+    lastDashboardData = data;
+    switchTab("dashboard");
   } catch (error) {
     dashboardMeta.textContent = "Falha ao gerar dashboard.";
     dashboardHint.textContent = error.message;
@@ -598,4 +1138,40 @@ weeklyButton.addEventListener("click", async () => {
     weeklyButton.disabled = false;
     weeklyButton.textContent = originalText;
   }
+});
+
+weeklyCsvButton.addEventListener("click", () => {
+  if (!lastDashboardData) {
+    dashboardHint.textContent = "Gere um dashboard semanal antes de exportar CSV.";
+    return;
+  }
+
+  const rows = [
+    ["Maquina", "IMEI", "Metros", "Estacas", "Media por estaca", "Dias sem producao", "Utilizacao %"],
+    ...lastDashboardData.machines.map((item) => [
+      item.machine.name,
+      item.machine.imei,
+      item.weeklyTotalMeters.toFixed(2).replace(".", ","),
+      item.weeklyTotalCount,
+      (item.operations?.avgMetersPerPile || 0).toFixed(2).replace(".", ","),
+      item.daysWithoutProduction,
+      (item.utilizationRate || 0).toFixed(1).replace(".", ","),
+    ]),
+  ];
+
+  const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(";")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `dashboard-semanal-${lastDashboardData.clientLogin}-${lastDashboardData.weekStart}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+});
+
+dashboardMachineFilter.addEventListener("change", () => {
+  const selected = selectedDashboardMachines().length;
+  dashboardSelectionMeta.textContent = `${selected} maquina(s) selecionada(s).`;
 });

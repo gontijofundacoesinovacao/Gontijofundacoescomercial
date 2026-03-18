@@ -18,6 +18,12 @@
         </p>
       </section>
 
+      <div class="tabs">
+        <button id="dailyTabButton" type="button" class="tab-button is-active">Diario</button>
+        <button id="dashboardTabButton" type="button" class="tab-button">Dashboard</button>
+      </div>
+
+      <section id="dailyTab" class="tab-panel is-active">
       <section class="card">
         <div class="actions">
           <div class="action-buttons">
@@ -65,13 +71,6 @@
 
           <button id="submitButton" type="submit">Buscar estacas</button>
         </form>
-        <div class="weekly-bar">
-          <label>
-            Semana
-            <input id="weekInput" name="weekInput" type="week" />
-          </label>
-          <button id="weeklyButton" type="button">Buscar estacas da semana</button>
-        </div>
       </section>
 
       <section class="card">
@@ -146,14 +145,228 @@
           </table>
         </div>
       </section>
+      </section>
 
-      <section id="dashboardSection" class="card is-hidden">
+      <section id="dashboardTab" class="tab-panel">
+      <section class="card dashboard-toolbar-card">
+        <div class="actions">
+          <div>
+            <p class="eyebrow dashboard-eyebrow">Analytics Semanal</p>
+            <h2 class="dashboard-title">Painel de Producao</h2>
+            <p class="dashboard-subtitle">Compare produtividade, metragem e volume de estacas por maquina ao longo da semana.</p>
+          </div>
+          <div class="weekly-bar dashboard-controls">
+            <label>
+              Semana
+              <input id="weekInput" name="weekInput" type="week" />
+            </label>
+            <label>
+              Obra
+              <input id="obraFilterInput" name="obraFilterInput" type="text" placeholder="Filtrar por obra" />
+            </label>
+            <label>
+              Contrato
+              <input id="contratoFilterInput" name="contratoFilterInput" type="text" placeholder="Filtrar por contrato" />
+            </label>
+            <button id="weeklyButton" type="button">Buscar estacas da semana</button>
+            <button id="weeklyCsvButton" type="button" class="secondary-button">Exportar CSV</button>
+          </div>
+        </div>
+        <div class="machine-filter-panel">
+          <div class="result-head">
+            <h3>Maquinas no Dashboard</h3>
+            <span id="dashboardSelectionMeta" class="muted">Todas selecionadas.</span>
+          </div>
+          <div id="dashboardMachineFilter" class="machine-filter-grid"></div>
+        </div>
+        <div class="subtabs top-gap">
+          <button id="subtabOverviewButton" type="button" class="subtab-button is-active">Resumo</button>
+          <button id="subtabMachinesButton" type="button" class="subtab-button">Maquinas</button>
+          <button id="subtabQualityButton" type="button" class="subtab-button">Qualidade & Concreto</button>
+          <button id="subtabTimelineButton" type="button" class="subtab-button">Timeline</button>
+        </div>
+      </section>
+
+      <section id="dashboardOverviewSection" class="card is-hidden dashboard-subpanel is-active">
         <div class="result-head">
-          <h2>Dashboard Semanal</h2>
+          <h2>Resumo Semanal</h2>
+          <span id="dashboardOverviewMeta" class="muted">Nenhum resumo gerado.</span>
+        </div>
+        <div id="dashboardStats" class="stats-grid"></div>
+        <div class="dashboard-layout">
+          <article class="dashboard-wide-card">
+            <div class="result-head">
+              <h3>Consolidado da Semana</h3>
+              <span class="muted">Metros e estacas por dia</span>
+            </div>
+            <canvas id="weeklyOverviewChart" height="140"></canvas>
+          </article>
+          <article class="dashboard-side-card">
+            <div class="result-head">
+              <h3>Ranking de Maquinas</h3>
+              <span class="muted">Maior metragem na semana</span>
+            </div>
+            <div class="table-wrap compact-wrap">
+              <table class="results-table compact-table">
+                <thead>
+                  <tr>
+                    <th>Maquina</th>
+                    <th>Metros</th>
+                    <th>Estacas</th>
+                  </tr>
+                </thead>
+                <tbody id="rankingTableBody"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+        <div class="dashboard-layout top-gap">
+          <article class="dashboard-wide-card">
+            <div class="result-head">
+              <h3>Curva Acumulada</h3>
+              <span class="muted">Evolucao acumulada de metros na semana</span>
+            </div>
+            <canvas id="cumulativeChart" height="120"></canvas>
+          </article>
+          <article class="dashboard-side-card">
+            <div class="result-head">
+              <h3>Alertas</h3>
+              <span class="muted">Produtividade, inclinacao e profundidade</span>
+            </div>
+            <div id="alertsList" class="alerts-list"></div>
+          </article>
+        </div>
+        <div class="dashboard-layout top-gap">
+          <article class="dashboard-wide-card">
+            <div class="result-head">
+              <h3>Obras na Semana</h3>
+              <span class="muted">Metros executados por obra</span>
+            </div>
+            <canvas id="obraChart" height="120"></canvas>
+          </article>
+          <article class="dashboard-side-card">
+            <div class="result-head">
+              <h3>Contratos na Semana</h3>
+              <span class="muted">Top contratos por metragem</span>
+            </div>
+            <div class="table-wrap compact-wrap">
+              <table class="results-table compact-table">
+                <thead>
+                  <tr>
+                    <th>Contrato</th>
+                    <th>Metros</th>
+                    <th>Estacas</th>
+                  </tr>
+                </thead>
+                <tbody id="contractTableBody"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+        <div class="dashboard-layout top-gap">
+          <article class="dashboard-wide-card">
+            <div class="result-head">
+              <h3>Heatmap de Producao</h3>
+              <span class="muted">Dia da semana x maquina</span>
+            </div>
+            <div id="heatmapGrid" class="heatmap-grid"></div>
+          </article>
+          <article class="dashboard-side-card">
+            <div class="result-head">
+              <h3>Boxplot de Profundidade</h3>
+              <span class="muted">Distribuicao por maquina</span>
+            </div>
+            <div id="boxplotList" class="boxplot-list"></div>
+          </article>
+        </div>
+        <div class="dashboard-layout top-gap">
+          <article class="dashboard-wide-card">
+            <div class="result-head">
+              <h3>Linha do Tempo</h3>
+              <span class="muted">Execucao cronologica da semana</span>
+            </div>
+            <div id="timelineList" class="timeline-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="dashboardSection" class="card is-hidden dashboard-subpanel">
+        <div class="result-head">
+          <h2>Dashboard Por Maquina</h2>
           <span id="dashboardMeta" class="muted">Nenhum dashboard gerado.</span>
         </div>
         <p id="dashboardHint" class="result-hint">Selecione uma semana e clique em buscar.</p>
         <div id="dashboardGrid" class="dashboard-grid"></div>
+      </section>
+
+      <section id="dashboardQualitySection" class="card is-hidden dashboard-subpanel">
+        <div class="result-head">
+          <h2>Qualidade & Concreto</h2>
+          <span id="qualityMeta" class="muted">Nenhuma analise gerada.</span>
+        </div>
+        <div class="dashboard-layout">
+          <article class="dashboard-wide-card">
+            <div class="result-head">
+              <h3>Concreto por Maquina</h3>
+              <span class="muted">Volume estimado, pressao e concretagem</span>
+            </div>
+            <div class="table-wrap compact-wrap">
+              <table class="results-table compact-table">
+                <thead>
+                  <tr>
+                    <th>Maquina</th>
+                    <th>Concreto (L)</th>
+                    <th>Pressao media</th>
+                    <th>Concretagem media</th>
+                  </tr>
+                </thead>
+                <tbody id="concreteTableBody"></tbody>
+              </table>
+            </div>
+          </article>
+          <article class="dashboard-side-card">
+            <div class="result-head">
+              <h3>Analise Tecnica</h3>
+              <span class="muted">Torque, rotacao e inclinacao</span>
+            </div>
+            <div id="qualityList" class="alerts-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="dashboardTimelineSection" class="card is-hidden dashboard-subpanel">
+        <div class="result-head">
+          <h2>Timeline & Rastreabilidade</h2>
+          <span id="timelineMeta" class="muted">Nenhuma timeline gerada.</span>
+        </div>
+        <div class="dashboard-layout">
+          <article class="dashboard-wide-card">
+            <div class="result-head">
+              <h3>Linha do Tempo</h3>
+              <span class="muted">Execucao cronologica da semana</span>
+            </div>
+            <div id="timelineListDetailed" class="timeline-list"></div>
+          </article>
+          <article class="dashboard-side-card">
+            <div class="result-head">
+              <h3>Contratos</h3>
+              <span class="muted">Top contratos por metragem</span>
+            </div>
+            <div class="table-wrap compact-wrap">
+              <table class="results-table compact-table">
+                <thead>
+                  <tr>
+                    <th>Contrato</th>
+                    <th>Metros</th>
+                    <th>Estacas</th>
+                  </tr>
+                </thead>
+                <tbody id="contractTableBodyDetailed"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+      </section>
       </section>
     </main>
 

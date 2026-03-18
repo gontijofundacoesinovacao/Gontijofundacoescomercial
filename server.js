@@ -136,6 +136,12 @@ function buildWeekDates(weekStart) {
   });
 }
 
+function shiftDate(dateText, days) {
+  const date = parseDateString(dateText);
+  date.setUTCDate(date.getUTCDate() + days);
+  return formatUtcDate(date);
+}
+
 function streamToBuffer(stream) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -185,6 +191,126 @@ function parseNumericLine(line) {
     .map((part) => part.trim())
     .filter((part) => part.length > 0)
     .map((part) => Number(part));
+}
+
+function average(values) {
+  const valid = values.filter((value) => Number.isFinite(value));
+  if (!valid.length) {
+    return null;
+  }
+  return valid.reduce((sum, value) => sum + value, 0) / valid.length;
+}
+
+function sum(values) {
+  return values.filter((value) => Number.isFinite(value)).reduce((total, value) => total + value, 0);
+}
+
+function parseBrDateTime(text) {
+  const match = String(text || "").trim().match(/^(\d{2})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})$/);
+  if (!match) {
+    return null;
+  }
+
+  const [, dd, mm, yy, hh, min] = match.map(Number);
+  const year = yy >= 70 ? 1900 + yy : 2000 + yy;
+  return new Date(Date.UTC(year, mm - 1, dd, hh, min, 0));
+}
+
+function minutesBetween(startText, endText) {
+  const start = parseBrDateTime(startText);
+  const end = parseBrDateTime(endText);
+  if (!start || !end) {
+    return null;
+  }
+  return Math.max(0, (end.getTime() - start.getTime()) / 60000);
+}
+
+function parseInclination(text) {
+  const parts = String(text || "")
+    .split(",")
+    .map((item) => Number(item.trim()));
+  const x = parts[0];
+  const y = parts[1];
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return null;
+  }
+  const xDeg = x / 10;
+  const yDeg = y / 10;
+  return {
+    xDeg,
+    yDeg,
+    magnitudeDeg: Math.sqrt((xDeg ** 2) + (yDeg ** 2)),
+  };
+}
+
+function decodeGps(latitudeRaw, longitudeRaw, altitudeRaw) {
+  const latitude = Number(latitudeRaw);
+  const longitude = Number(longitudeRaw);
+  const altitude = Number(altitudeRaw);
+
+  if (!latitude || !longitude || !altitude) {
+    return null;
+  }
+
+  const lat = (latitude - 2147483648) / 600000;
+  const lon = (longitude - 2147483648) / 600000;
+  const alt = altitude - 32768;
+
+  if (lat >= 90 || lat <= -90 || lon >= 180 || lon <= -180) {
+    return null;
+  }
+
+  return { lat, lon, alt };
+}
+
+function parseLine8Metadata(text) {
+  const values = String(text || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => Number(item));
+
+  if (!values.length) {
+    return { pulsesPerRotation: null, gps: null, rawValues: [] };
+  }
+
+  let gps = null;
+  if (values.length === 4) {
+    gps = decodeGps(values[1], values[2], values[3]);
+  } else if (values.length === 20) {
+    gps = decodeGps(values[17], values[18], values[19]);
+  }
+
+  return {
+    pulsesPerRotation: Number.isFinite(values[0]) ? values[0] : null,
+    gps,
+    rawValues: values,
+  };
+}
+
+function convertPressureBar(rawValue) {
+  if (!Number.isFinite(rawValue)) {
+    return null;
+  }
+  return -3.32 + (28.32 * rawValue) / 256;
+}
+
+function convertTorqueBar(rawValue) {
+  if (!Number.isFinite(rawValue)) {
+    return null;
+  }
+  return -53.1 + (453.1 * rawValue) / 256;
+}
+
+function classifyShift(timeText) {
+  const match = String(timeText || "").match(/^(\d{2}):(\d{2}):(\d{2})$/);
+  if (!match) {
+    return "indefinido";
+  }
+  const hour = Number(match[1]);
+  if (hour >= 6 && hour < 14) return "manha";
+  if (hour >= 14 && hour < 22) return "tarde";
+  return "noite";
 }
 
 function calculateDepthAndPhases(sliceLines) {
@@ -298,9 +424,35 @@ async function buildEstacaDetail(client, key) {
 function toOperationalSummary(item, detail) {
   const header = detail.parsed.header || {};
   const phases = detail.parsed.phases || {};
+  const slices = detail.parsed.slices || [];
   const diameterMm = Number(String(header.diametro || "").replace(",", ".").trim());
   const diameterCm = Number.isFinite(diameterMm) ? diameterMm / 10 : null;
   const realizadoM = Number.isFinite(phases.depthCm) ? phases.depthCm / 100 : null;
+  const line8 = parseLine8Metadata(header.linha8);
+  const inclination = parseInclination(header.inclinacao);
+  const drillingDurationMin = minutesBetween(header.inicioPerfuracao, header.fimPerfuracao);
+  const concretingDurationMin = minutesBetween(header.inicioConcretagem, header.fimConcretagem);
+  const totalDurationMin =
+    Number.isFinite(drillingDurationMin) && Number.isFinite(concretingDurationMin)
+      ? drillingDurationMin + concretingDurationMin
+      : null;
+  const drillingSlices = slices.slice(0, phases.drillingSlices);
+  const concretingSlices = slices.slice(phases.drillingSlices + 1);
+  const pumpVolumeDeciliters = Number(String(header.bomba || "").replace(",", ".").trim());
+  const pumpVolumeLiters = Number.isFinite(pumpVolumeDeciliters) ? pumpVolumeDeciliters / 10 : null;
+  const estimatedConcreteLiters =
+    pumpVolumeLiters != null ? sum(concretingSlices.map((slice) => slice.value3)) * pumpVolumeLiters : null;
+  const avgPressureBar = average(concretingSlices.map((slice) => convertPressureBar(slice.value2)));
+  const avgTorqueBar = average(drillingSlices.map((slice) => convertTorqueBar(slice.value3)));
+  const drillingTicks = drillingSlices.map((slice) => slice.timeTick).filter((value) => Number.isFinite(value));
+  const drillingTicksDiff = drillingTicks.length > 1 ? drillingTicks[drillingTicks.length - 1] - drillingTicks[0] : null;
+  const drillingMinutesByTicks = Number.isFinite(drillingTicksDiff) ? drillingTicksDiff / 93.75 / 60 : null;
+  const avgRotationRpm =
+    line8.pulsesPerRotation && drillingMinutesByTicks && drillingMinutesByTicks > 0
+      ? (sum(drillingSlices.map((slice) => slice.value2)) / line8.pulsesPerRotation) / drillingMinutesByTicks
+      : null;
+  const finishedAtDate = item.finishedAt ? `${item.finishedAt}` : null;
+  const shift = classifyShift(item.finishedAt);
 
   return {
     key: item.key,
@@ -314,6 +466,18 @@ function toOperationalSummary(item, detail) {
     profundidadeCm: phases.depthCm ?? 0,
     drillingSlices: phases.drillingSlices ?? 0,
     concretingSlices: phases.concretingSlices ?? 0,
+    drillingDurationMin,
+    concretingDurationMin,
+    totalDurationMin,
+    inclination,
+    pulsesPerRotation: line8.pulsesPerRotation,
+    gps: line8.gps,
+    estimatedConcreteLiters,
+    avgPressureBar,
+    avgTorqueBar,
+    avgRotationRpm,
+    shift,
+    finishedAtDate,
   };
 }
 
@@ -346,6 +510,139 @@ async function buildOperationalSummaries(client, prefix) {
   }
 
   return summaries;
+}
+
+function applySummaryFilters(items, obraFilter, contratoFilter) {
+  const obraQuery = String(obraFilter || "").trim().toLowerCase();
+  const contratoQuery = String(contratoFilter || "").trim().toLowerCase();
+
+  return items.filter((item) => {
+    const obraOk = !obraQuery || String(item.obra || "").toLowerCase().includes(obraQuery);
+    const contratoOk = !contratoQuery || String(item.contrato || "").toLowerCase().includes(contratoQuery);
+    return obraOk && contratoOk;
+  });
+}
+
+function groupTotals(items, field) {
+  const map = new Map();
+
+  for (const item of items) {
+    const key = String(item[field] || "Nao informado").trim() || "Nao informado";
+    const current = map.get(key) || { name: key, meters: 0, count: 0 };
+    current.meters += item.realizadoM || 0;
+    current.count += 1;
+    map.set(key, current);
+  }
+
+  return [...map.values()].sort((a, b) => b.meters - a.meters);
+}
+
+function buildTimeline(items) {
+  return [...items]
+    .sort((a, b) => `${a.date} ${a.finishedAt}`.localeCompare(`${b.date} ${b.finishedAt}`))
+    .map((item) => ({
+      date: item.date,
+      finishedAt: item.finishedAt,
+      machine: item.machineName,
+      estaca: item.estaca,
+      obra: item.obra,
+      contrato: item.contrato,
+      realizadoM: item.realizadoM,
+    }));
+}
+
+function buildHeatmap(machineReports, weekDates) {
+  return machineReports.map((report) => ({
+    machine: report.machine.name,
+    imei: report.machine.imei,
+    cells: weekDates.map((date) => {
+      const daily = report.daily.find((item) => item.date === date);
+      return {
+        date,
+        meters: daily?.totalMeters || 0,
+        count: daily?.totalCount || 0,
+      };
+    }),
+  }));
+}
+
+function percentile(sortedValues, p) {
+  if (!sortedValues.length) return null;
+  const index = (sortedValues.length - 1) * p;
+  const lower = Math.floor(index);
+  const upper = Math.ceil(index);
+  if (lower === upper) return sortedValues[lower];
+  return sortedValues[lower] + (sortedValues[upper] - sortedValues[lower]) * (index - lower);
+}
+
+function buildBoxplot(items) {
+  const grouped = new Map();
+
+  for (const item of items) {
+    const key = item.machineName;
+    const values = grouped.get(key) || [];
+    if (Number.isFinite(item.realizadoM)) {
+      values.push(item.realizadoM);
+    }
+    grouped.set(key, values);
+  }
+
+  return [...grouped.entries()].map(([machine, values]) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    return {
+      machine,
+      min: sorted[0] ?? null,
+      q1: percentile(sorted, 0.25),
+      median: percentile(sorted, 0.5),
+      q3: percentile(sorted, 0.75),
+      max: sorted[sorted.length - 1] ?? null,
+    };
+  });
+}
+
+function buildAlerts(machineReports, previousMachineReports, allItems) {
+  const alerts = [];
+  const previousMap = new Map(previousMachineReports.map((item) => [item.machine.imei, item]));
+
+  for (const report of machineReports) {
+    const previous = previousMap.get(report.machine.imei);
+    if (report.daysWithoutProduction > 0) {
+      alerts.push({
+        type: "warning",
+        machine: report.machine.name,
+        message: `${report.daysWithoutProduction} dia(s) sem producao na semana.`,
+      });
+    }
+    if (previous && previous.weeklyTotalMeters > 0 && report.weeklyTotalMeters < previous.weeklyTotalMeters * 0.7) {
+      alerts.push({
+        type: "warning",
+        machine: report.machine.name,
+        message: "Queda de produtividade superior a 30% em relacao a semana anterior.",
+      });
+    }
+    if ((report.quality?.outOfInclinationLimit || 0) > 0) {
+      alerts.push({
+        type: "danger",
+        machine: report.machine.name,
+        message: `${report.quality.outOfInclinationLimit} estaca(s) com inclinacao acima do limite configurado.`,
+      });
+    }
+  }
+
+  const avgDepth = average(allItems.map((item) => item.realizadoM));
+  if (Number.isFinite(avgDepth)) {
+    for (const item of allItems) {
+      if (item.realizadoM > avgDepth * 1.3 || item.realizadoM < avgDepth * 0.7) {
+        alerts.push({
+          type: "info",
+          machine: item.machineName,
+          message: `Estaca ${item.estaca} com profundidade fora do padrao medio da semana.`,
+        });
+      }
+    }
+  }
+
+  return alerts.slice(0, 20);
 }
 
 function ensurePdfSpace(doc, needed = 28) {
@@ -640,7 +937,7 @@ app.get("/api/estacas/summary/pdf", async (req, res) => {
 
 app.post("/api/dashboard/weekly", async (req, res) => {
   const missing = missingEnvVars();
-  const { clientLogin, weekStart, machines } = req.body || {};
+  const { clientLogin, weekStart, machines, obraFilter, contratoFilter } = req.body || {};
 
   if (missing.length > 0) {
     return res.status(500).json({
@@ -683,41 +980,151 @@ app.post("/api/dashboard/weekly", async (req, res) => {
   try {
     const client = buildS3Client();
     const machineReports = [];
+    const previousMachineReports = [];
+    const allItems = [];
+    const previousAllItems = [];
+    const previousWeekDates = buildWeekDates(shiftDate(weekStart, -7));
 
     for (const machine of normalizedMachines) {
       const daily = [];
+      const previousDaily = [];
       let weeklyTotalMeters = 0;
       let weeklyTotalCount = 0;
+      let firstFinishedAt = null;
+      let lastFinishedAt = null;
+      const shiftStats = {
+        manha: { meters: 0, count: 0 },
+        tarde: { meters: 0, count: 0 },
+        noite: { meters: 0, count: 0 },
+        indefinido: { meters: 0, count: 0 },
+      };
+      const weeklyItems = [];
 
       for (const date of weekDates) {
         const prefix = buildPrefix(normalizedClientLogin, machine.imei, date);
-        const summaries = await buildOperationalSummaries(client, prefix);
+        const summaries = applySummaryFilters(await buildOperationalSummaries(client, prefix), obraFilter, contratoFilter)
+          .map((item) => ({ ...item, machineName: machine.name, machineImei: machine.imei, date }));
         const totalMeters = summaries.reduce((sum, item) => sum + (item.realizadoM || 0), 0);
         const totalCount = summaries.length;
+        const firstTime = summaries.map((item) => item.finishedAt).filter(Boolean).sort()[0] || null;
+        const lastTime = summaries.map((item) => item.finishedAt).filter(Boolean).sort().at(-1) || null;
 
         daily.push({
           date,
           totalMeters,
           totalCount,
+          firstTime,
+          lastTime,
         });
 
         weeklyTotalMeters += totalMeters;
         weeklyTotalCount += totalCount;
+        weeklyItems.push(...summaries);
+        allItems.push(...summaries);
+
+        if (firstTime && (!firstFinishedAt || `${date} ${firstTime}` < firstFinishedAt)) {
+          firstFinishedAt = `${date} ${firstTime}`;
+        }
+        if (lastTime && (!lastFinishedAt || `${date} ${lastTime}` > lastFinishedAt)) {
+          lastFinishedAt = `${date} ${lastTime}`;
+        }
+
+        for (const item of summaries) {
+          const bucket = shiftStats[item.shift] || shiftStats.indefinido;
+          bucket.meters += item.realizadoM || 0;
+          bucket.count += 1;
+        }
       }
+
+      let previousWeeklyTotalMeters = 0;
+      let previousWeeklyTotalCount = 0;
+      for (const date of previousWeekDates) {
+        const prefix = buildPrefix(normalizedClientLogin, machine.imei, date);
+        const summaries = applySummaryFilters(await buildOperationalSummaries(client, prefix), obraFilter, contratoFilter)
+          .map((item) => ({ ...item, machineName: machine.name, machineImei: machine.imei, date }));
+        const totalMeters = summaries.reduce((sum, item) => sum + (item.realizadoM || 0), 0);
+        const totalCount = summaries.length;
+        previousDaily.push({ date, totalMeters, totalCount });
+        previousWeeklyTotalMeters += totalMeters;
+        previousWeeklyTotalCount += totalCount;
+        previousAllItems.push(...summaries);
+      }
+
+      const avgInclination = average(weeklyItems.map((item) => item.inclination?.magnitudeDeg));
+      const outOfInclinationLimit = weeklyItems.filter((item) => (item.inclination?.magnitudeDeg || 0) > 5).length;
+      const avgDrillingDurationMin = average(weeklyItems.map((item) => item.drillingDurationMin));
+      const avgConcretingDurationMin = average(weeklyItems.map((item) => item.concretingDurationMin));
+      const utilizationRate = weekDates.length ? ((weekDates.length - daily.filter((item) => item.totalCount === 0).length) / weekDates.length) * 100 : 0;
+      const avgConcreteLiters = average(weeklyItems.map((item) => item.estimatedConcreteLiters));
+      const avgPressureBar = average(weeklyItems.map((item) => item.avgPressureBar));
+      const avgTorqueBar = average(weeklyItems.map((item) => item.avgTorqueBar));
+      const avgRotationRpm = average(weeklyItems.map((item) => item.avgRotationRpm));
+      const gpsPoints = weeklyItems.filter((item) => item.gps);
 
       machineReports.push({
         machine,
         daily,
+        previousDaily,
         weeklyTotalMeters,
         weeklyTotalCount,
+        previousWeeklyTotalMeters,
+        previousWeeklyTotalCount,
+        firstFinishedAt,
+        lastFinishedAt,
+        daysWithoutProduction: daily.filter((item) => item.totalCount === 0).length,
+        utilizationRate,
+        shifts: shiftStats,
+        quality: {
+          avgInclination,
+          outOfInclinationLimit,
+          avgPressureBar,
+          avgTorqueBar,
+          avgRotationRpm,
+          avgConcreteLiters,
+        },
+        operations: {
+          avgDrillingDurationMin,
+          avgConcretingDurationMin,
+          avgMetersPerPile: weeklyTotalCount ? weeklyTotalMeters / weeklyTotalCount : 0,
+        },
+        gpsPoints: gpsPoints.map((item) => ({
+          lat: item.gps.lat,
+          lon: item.gps.lon,
+          alt: item.gps.alt,
+          estaca: item.estaca,
+          obra: item.obra,
+        })),
+      });
+
+      previousMachineReports.push({
+        machine,
+        weeklyTotalMeters: previousWeeklyTotalMeters,
+        weeklyTotalCount: previousWeeklyTotalCount,
       });
     }
+
+    const obraTotals = groupTotals(allItems, "obra");
+    const contratoTotals = groupTotals(allItems, "contrato");
+    const previousTotalMeters = previousMachineReports.reduce((sum, item) => sum + item.weeklyTotalMeters, 0);
+    const previousTotalCount = previousMachineReports.reduce((sum, item) => sum + item.weeklyTotalCount, 0);
 
     return res.json({
       ok: true,
       clientLogin: normalizedClientLogin,
       weekStart,
       weekDates,
+      previousWeekStart: previousWeekDates[0],
+      previousWeekDates,
+      previousTotals: {
+        meters: previousTotalMeters,
+        count: previousTotalCount,
+      },
+      obraTotals,
+      contratoTotals,
+      timeline: buildTimeline(allItems).slice(0, 50),
+      heatmap: buildHeatmap(machineReports, weekDates),
+      boxplot: buildBoxplot(allItems),
+      alerts: buildAlerts(machineReports, previousMachineReports, allItems),
       machines: machineReports,
     });
   } catch (error) {
