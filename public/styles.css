@@ -774,6 +774,17 @@ select {
   gap: 12px;
 }
 
+.timeline-list--auto-scroll {
+  max-height: calc(100vh - 250px);
+  overflow: auto;
+  padding-right: 4px;
+  scrollbar-width: none;
+}
+
+.timeline-list--auto-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 .chart-stage {
   position: relative;
   min-height: 220px;

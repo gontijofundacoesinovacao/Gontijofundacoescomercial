@@ -2,6 +2,8 @@ import { api } from './api.js';
 import { getState, getWeekStartFromInput } from './state.js';
 import { renderComparisonList, renderHeatmap, renderMultiLineChart } from './charts.js';
 
+let secondaryTvTimelineTimer = null;
+
 function alertCard(item) {
   return `
     <article class="alert-card warning">
@@ -62,6 +64,25 @@ function machineDayCard(machine) {
   `;
 }
 
+function bindAutoScrollTimeline(container) {
+  if (secondaryTvTimelineTimer) {
+    clearInterval(secondaryTvTimelineTimer);
+    secondaryTvTimelineTimer = null;
+  }
+
+  if (!container) return;
+
+  container.scrollTop = 0;
+  if (container.scrollHeight <= container.clientHeight + 8) {
+    return;
+  }
+
+  secondaryTvTimelineTimer = setInterval(() => {
+    const reachedBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 4;
+    container.scrollTop = reachedBottom ? 0 : container.scrollTop + 1;
+  }, 80);
+}
+
 async function renderSecondaryTvDailyOps(state) {
   const data = await api.getDaily({
     clientLogin: state.clientLogin,
@@ -98,7 +119,7 @@ async function renderSecondaryTvDailyOps(state) {
           <h3>Timeline do dia</h3>
           <span>Ultimas estacas registradas</span>
         </div>
-        <div class="timeline-list">
+        <div id="secondaryTvTimeline" class="timeline-list timeline-list--auto-scroll">
           ${data.timeline.length
             ? data.timeline.map(timelineCard).join('')
             : '<p class="inline-feedback">Nenhum evento registrado para o dia selecionado.</p>'}
@@ -106,6 +127,8 @@ async function renderSecondaryTvDailyOps(state) {
       </section>
     </div>
   `;
+
+  bindAutoScrollTimeline(document.getElementById('secondaryTvTimeline'));
 
   return data;
 }
