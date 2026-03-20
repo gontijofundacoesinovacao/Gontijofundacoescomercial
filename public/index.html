@@ -6,10 +6,13 @@
     <title>Dashboard Operacional Gontijo</title>
     <link rel="stylesheet" href="/styles.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+      window.__APP_CONFIG__ = window.__APP_CONFIG__ || {};
+    </script>
   </head>
   <body>
     <div class="shell">
-      <header class="topbar">
+      <header class="topbar" id="topbar">
         <div class="brand">
           <span class="brand-mark">G</span>
           <div>
@@ -126,13 +129,23 @@
               <p class="eyebrow">TV 2</p>
               <h2>Analises Operacionais</h2>
             </div>
-            <div class="meta-copy">
+          <div class="meta-copy">
               <strong id="secondaryMeta">-</strong>
-              <span>Ranking, obras, heatmap e alertas</span>
+              <span>Ritmo diario, ranking, heatmap e alertas</span>
             </div>
           </div>
 
-          <div class="panel-grid two-col">
+          <section class="panel panel--feature">
+            <div class="panel-head">
+              <h3>Ritmo diario da semana</h3>
+              <span>Realizado por dia versus meta diaria consolidada</span>
+            </div>
+            <div class="chart-stage chart-stage--large">
+              <canvas id="secondaryTrendChart"></canvas>
+            </div>
+          </section>
+
+          <div class="panel-grid two-col panel-grid--secondary-top">
             <section class="panel">
               <div class="panel-head">
                 <h3>Top maquinas</h3>
@@ -142,10 +155,10 @@
             </section>
             <section class="panel">
               <div class="panel-head">
-                <h3>Top obras</h3>
-                <span>Execucao por obra</span>
+                <h3>Alertas</h3>
+                <span>Pontos que exigem atencao</span>
               </div>
-              <canvas id="secondaryWorksChart" height="160"></canvas>
+              <div id="secondaryAlerts" class="alerts-list"></div>
             </section>
           </div>
 
@@ -159,10 +172,10 @@
             </section>
             <section class="panel">
               <div class="panel-head">
-                <h3>Alertas</h3>
-                <span>Pontos que exigem atencao</span>
+                <h3>Top obras</h3>
+                <span>Execucao consolidada na semana</span>
               </div>
-              <div id="secondaryAlerts" class="alerts-list"></div>
+              <div id="secondaryWorks" class="ranking-list"></div>
             </section>
           </div>
 

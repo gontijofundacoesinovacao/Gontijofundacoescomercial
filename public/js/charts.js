@@ -17,9 +17,19 @@ function statusTone(percent) {
 
 export function renderBuildingCard(container, options) {
   const percent = options.percent == null ? null : Number(options.percent.toFixed(1));
-  const tone = statusTone(percent);
+  const tone = options.tone || statusTone(percent);
   const realized = Number(options.realized || 0);
   const goal = Number(options.goal || 0);
+  const primaryValue = Number(options.primaryValue ?? realized);
+  const fillPercent = options.fillPercent == null
+    ? Math.max(0, Math.min(percent || 0, 100))
+    : Math.max(0, Math.min(Number(options.fillPercent) || 0, 100));
+  const percentLabel = options.percentLabel || (percent == null ? 'Sem meta' : `${percent}% da meta`);
+  const metrics = options.metrics || [
+    { label: 'Realizado', value: realized },
+    { label: 'Meta', value: goal },
+    { label: 'Percentual', value: percent == null ? '-' : `${percent}%` },
+  ];
   container.innerHTML = `
     <article class="hero-card ${options.accent ? 'hero-card--accent' : ''}">
       <div class="panel-head">
@@ -28,35 +38,65 @@ export function renderBuildingCard(container, options) {
           <h3>${options.title}</h3>
         </div>
         <span class="status-tag ${tone}">
-          ${percent == null ? 'Sem meta' : `${percent}% da meta`}
+          ${percentLabel}
         </span>
       </div>
       <div class="building-chart">
         <div class="building-figure">
-          <div class="building-fill" style="height:${Math.max(0, Math.min(percent || 0, 100))}%"></div>
+          <div class="building-fill ${options.fillClass || ''}" style="height:${fillPercent}%"></div>
           <div class="building-grid">${'<span></span>'.repeat(30)}</div>
         </div>
         <div class="building-label">
-          <strong>${realized}</strong>
+          <strong>${primaryValue}</strong>
           <p>${options.description || ''}</p>
           <div class="summary-strip">
-            <div class="summary-chip">
-              <span>Realizado</span>
-              <strong>${realized}</strong>
-            </div>
-            <div class="summary-chip">
-              <span>Meta</span>
-              <strong>${goal}</strong>
-            </div>
-            <div class="summary-chip">
-              <span>Percentual</span>
-              <strong>${percent == null ? '-' : `${percent}%`}</strong>
-            </div>
+            ${metrics
+              .map(
+                (item) => `
+                  <div class="summary-chip">
+                    <span>${item.label}</span>
+                    <strong>${item.value}</strong>
+                  </div>
+                `
+              )
+              .join('')}
           </div>
         </div>
       </div>
     </article>
   `;
+}
+
+export function renderComparisonList(container, items, options = {}) {
+  const max = Math.max(...items.map((item) => Number(item.value || 0)), Number(options.max || 0), 1);
+  if (!items.length) {
+    container.innerHTML = `<p class="inline-feedback">${options.emptyText || 'Nenhum dado disponivel.'}</p>`;
+    return;
+  }
+
+  container.innerHTML = items
+    .map((item, index) => {
+      const width = Math.max(8, (Number(item.value || 0) / max) * 100);
+      return `
+        <article class="compare-row">
+          <div class="compare-row__head">
+            <div>
+              <span class="compare-row__kicker">${options.kicker || 'Ranking'} ${index + 1}</span>
+              <strong>${item.label}</strong>
+              <p>${item.subLabel || ''}</p>
+            </div>
+            <div class="compare-row__values">
+              <strong>${item.value}</strong>
+              ${item.sideValue == null ? '' : `<span>${item.sideValue}</span>`}
+            </div>
+          </div>
+          <div class="compare-row__track">
+            <span style="width:${width}%"></span>
+          </div>
+        </article>
+      `;
+    })
+    .join('');
 }
 
 export function renderLineChart(canvasId, labels, values, label) {
@@ -100,44 +140,41 @@ export function renderLineChart(canvasId, labels, values, label) {
   chartRegistry.set(canvasId, chart);
 }
 
-export function renderBarChart(canvasId, labels, values, label) {
+export function renderMultiLineChart(canvasId, labels, datasets) {
   destroyChart(canvasId);
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
   const chart = new Chart(canvas, {
-    type: 'bar',
+    type: 'line',
     data: {
       labels,
-      datasets: [
-        {
-          label,
-          data: values,
-          backgroundColor: [
-            '#d81f26',
-            '#b9141a',
-            '#f06767',
-            '#f39a9a',
-            '#921118',
-            '#db4d4d',
-            '#f7b1b1',
-            '#ffcccc',
-          ],
-          borderRadius: 12,
-          borderSkipped: false,
-        },
-      ],
+      datasets,
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
       plugins: {
-        legend: { display: false },
+        legend: {
+          display: true,
+          labels: {
+            color: '#8a4f4f',
+            usePointStyle: true,
+            padding: 18,
+          },
+        },
       },
       scales: {
-        x: { grid: { display: false } },
+        x: {
+          grid: { display: false },
+          ticks: { color: '#8a4f4f' },
+        },
         y: {
           beginAtZero: true,
           grid: { color: 'rgba(185, 20, 26, 0.08)' },
-          ticks: { precision: 0 },
+          ticks: {
+            precision: 0,
+            color: '#8a4f4f',
+          },
         },
       },
     },

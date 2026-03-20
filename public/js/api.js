@@ -1,6 +1,16 @@
+function getApiBaseUrl() {
+  const configured = window.__APP_CONFIG__?.apiBaseUrl || '';
+  return String(configured).replace(/\/+$/, '');
+}
+
+function buildApiUrl(path) {
+  const baseUrl = getApiBaseUrl();
+  return baseUrl ? `${baseUrl}${path}` : path;
+}
+
 async function request(path, options = {}) {
-  const response = await fetch(path, {
-    credentials: 'same-origin',
+  const response = await fetch(buildApiUrl(path), {
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...(options.headers || {}),

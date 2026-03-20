@@ -30,6 +30,7 @@ Principais:
 - `ADMIN_PASSWORD`
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `CORS_ORIGIN`
 - `TV_ROTATION_SECONDS`
 - `TV_SECONDARY_ROTATION_SECONDS`
 - `TV_AUTO_REFRESH_SECONDS`
@@ -46,6 +47,15 @@ Abra:
 - `http://localhost:3000`
 - `http://localhost:3000/?screen=primary-tv`
 - `http://localhost:3000/?screen=secondary-tv`
+
+## Deploy separado: Vercel + Netlify
+
+- Backend no Vercel: publique o app Node/Express com as mesmas variaveis do `.env`.
+- Frontend no Netlify: publique a pasta `public/`.
+- Se frontend e backend ficarem em dominios diferentes:
+  - configure `CORS_ORIGIN` no backend com a URL exata do Netlify
+  - configure `window.__APP_CONFIG__.apiBaseUrl` no HTML para apontar para a URL do backend no Vercel
+- O frontend usa `credentials: include`, entao o admin funciona cross-origin desde que `CORS_ORIGIN` esteja configurado corretamente.
 
 ## Supabase
 

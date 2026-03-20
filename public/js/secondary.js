@@ -1,19 +1,6 @@
 import { api } from './api.js';
 import { getState, getWeekStartFromInput } from './state.js';
-import { renderBarChart, renderHeatmap } from './charts.js';
-
-function machineRankCard(item, index) {
-  return `
-    <article class="rank-card">
-      <div class="rank-order">${index + 1}</div>
-      <div>
-        <strong>${item.machine_name}</strong>
-        <p>${item.obra_name || 'Sem obra'}</p>
-      </div>
-      <strong>${item.realized_estacas}</strong>
-    </article>
-  `;
-}
+import { renderComparisonList, renderHeatmap, renderMultiLineChart } from './charts.js';
 
 function alertCard(item) {
   return `
@@ -45,9 +32,32 @@ export async function renderSecondaryView() {
   });
 
   document.getElementById('secondaryMeta').textContent = `${data.item.today_total_estacas} hoje / ${data.item.week_total_estacas} semana`;
-  document.getElementById('secondaryMachines').innerHTML = data.item.top_machines.length
-    ? data.item.top_machines.map(machineRankCard).join('')
-    : '<p class="inline-feedback">Nenhuma maquina no ranking.</p>';
+  renderComparisonList(
+    document.getElementById('secondaryMachines'),
+    data.item.top_machines.slice(0, 6).map((item) => ({
+      label: item.machine_name,
+      subLabel: item.obra_name || 'Sem obra',
+      value: item.realized_estacas,
+      sideValue: `${item.realized_estacas} estacas`,
+    })),
+    {
+      kicker: 'Maquina',
+      emptyText: 'Nenhuma maquina no ranking.',
+    }
+  );
+  renderComparisonList(
+    document.getElementById('secondaryWorks'),
+    data.item.top_works.slice(0, 6).map((item) => ({
+      label: item.obra_name,
+      subLabel: `${item.machines} maquinas`,
+      value: item.realized_estacas,
+      sideValue: `${item.goal_estacas || 0} meta`,
+    })),
+    {
+      kicker: 'Obra',
+      emptyText: 'Nenhuma obra consolidada.',
+    }
+  );
   document.getElementById('secondaryAlerts').innerHTML = data.item.alerts.length
     ? data.item.alerts.map(alertCard).join('')
     : '<p class="inline-feedback">Nenhum alerta operacional.</p>';
@@ -55,11 +65,32 @@ export async function renderSecondaryView() {
     ? data.item.timeline.map(timelineCard).join('')
     : '<p class="inline-feedback">Nenhuma timeline disponivel.</p>';
 
-  renderBarChart(
-    'secondaryWorksChart',
-    data.item.top_works.map((item) => item.obra_name),
-    data.item.top_works.map((item) => item.realized_estacas),
-    'Obras'
+  renderMultiLineChart(
+    'secondaryTrendChart',
+    data.item.daily_realized_by_day.map((item) => item.date.slice(5)),
+    [
+      {
+        label: 'Realizado',
+        data: data.item.daily_realized_by_day.map((item) => item.realized_estacas),
+        borderColor: '#d81f26',
+        backgroundColor: 'rgba(216, 31, 38, 0.14)',
+        fill: true,
+        tension: 0.28,
+        pointRadius: 5,
+        pointBackgroundColor: '#ffffff',
+        pointBorderColor: '#b9141a',
+        pointBorderWidth: 2,
+      },
+      {
+        label: 'Meta diaria',
+        data: data.item.daily_realized_by_day.map((item) => item.goal_estacas),
+        borderColor: '#8a4f4f',
+        borderDash: [10, 8],
+        fill: false,
+        tension: 0,
+        pointRadius: 0,
+      },
+    ]
   );
   renderHeatmap(document.getElementById('secondaryHeatmap'), data.item.heatmap);
 

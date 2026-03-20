@@ -11,6 +11,7 @@ function showOnly(viewId) {
 
 export async function initTvMode(screen) {
   document.body.classList.add('tv-mode');
+  document.body.dataset.screen = screen;
   document.getElementById('mainNav').classList.add('is-hidden');
   document.getElementById('controlPanel').classList.add('is-hidden');
   document.getElementById('refreshButton').classList.add('is-hidden');

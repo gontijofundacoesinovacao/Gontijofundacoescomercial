@@ -31,6 +31,7 @@ app.use((req, res, next) => {
   if (allowedOrigin) {
     res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
     res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
   }
@@ -207,12 +208,20 @@ function setCookie(res, name, value, options = {}) {
   res.setHeader("Set-Cookie", parts.join("; "));
 }
 
+function cookieOptionsForRequest() {
+  const isCrossOrigin = Boolean(process.env.CORS_ORIGIN);
+  const secure = process.env.NODE_ENV === "production" || isCrossOrigin;
+  return {
+    path: "/",
+    sameSite: isCrossOrigin ? "None" : "Lax",
+    secure,
+  };
+}
+
 function clearCookie(res, name) {
   setCookie(res, name, "", {
     maxAge: 0,
-    path: "/",
-    sameSite: "Lax",
-    secure: process.env.NODE_ENV === "production",
+    ...cookieOptionsForRequest(),
   });
 }
 
@@ -1184,15 +1193,13 @@ app.post("/api/admin/session", (req, res) => {
     });
   }
 
-  const token = crypto.randomUUID();
+    const token = crypto.randomUUID();
   adminSessions.set(token, {
     createdAt: new Date().toISOString(),
   });
   setCookie(res, "admin_session", token, {
     maxAge: 60 * 60 * 12,
-    path: "/",
-    sameSite: "Lax",
-    secure: process.env.NODE_ENV === "production",
+    ...cookieOptionsForRequest(),
   });
 
   return res.json({
@@ -1933,6 +1940,10 @@ app.get("/api/estacas/detail", async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`Servidor em http://localhost:${port}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(port, () => {
+    console.log(`Servidor em http://localhost:${port}`);
+  });
+}
+
+module.exports = app;
