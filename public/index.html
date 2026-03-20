@@ -67,7 +67,7 @@
           </div>
 
           <div id="dailyHero" class="hero-grid"></div>
-          <div class="panel-grid two-col">
+          <div class="panel-grid two-col daily-desktop-panels">
             <section class="panel">
               <div class="panel-head">
                 <h3>Maquinas do dia</h3>
@@ -81,6 +81,36 @@
                 <span>Ultimas estacas registradas</span>
               </div>
               <div id="dailyTimeline" class="timeline-list"></div>
+            </section>
+          </div>
+        </section>
+
+        <section id="dailyOpsView" class="view-section">
+          <div class="view-head">
+            <div>
+              <p class="eyebrow">Operacao</p>
+              <h2>Maquinas e Timeline do Dia</h2>
+            </div>
+            <div class="meta-copy">
+              <strong id="dailyOpsDateLabel">-</strong>
+              <span>Distribuicao operacional do dia</span>
+            </div>
+          </div>
+
+          <div class="panel-grid panel-grid--ops-split">
+            <section class="panel">
+              <div class="panel-head">
+                <h3>Maquinas ativas do dia</h3>
+                <span id="dailyOpsMachinesCount">0 maquinas</span>
+              </div>
+              <div id="dailyOpsMachineCards" class="machine-card-grid"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-head">
+                <h3>Timeline do dia</h3>
+                <span>Ultimas estacas registradas</span>
+              </div>
+              <div id="dailyOpsTimeline" class="timeline-list"></div>
             </section>
           </div>
         </section>

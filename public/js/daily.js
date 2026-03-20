@@ -149,6 +149,27 @@ function timelineCard(item) {
   `;
 }
 
+function renderDailyOperationalPanels(data) {
+  const activeMachines = data.machines.filter((machine) => machine.active);
+  const machineCardsHtml = activeMachines.map(machineCard).join('');
+  const timelineHtml = data.timeline.length
+    ? data.timeline.map(timelineCard).join('')
+    : '<p class="inline-feedback">Nenhum evento registrado para o dia selecionado.</p>';
+
+  document.getElementById('dailyMachineCards').innerHTML = machineCardsHtml;
+  document.getElementById('dailyTimeline').innerHTML = timelineHtml;
+
+  const opsDate = document.getElementById('dailyOpsDateLabel');
+  const opsMachinesCount = document.getElementById('dailyOpsMachinesCount');
+  const opsMachineCards = document.getElementById('dailyOpsMachineCards');
+  const opsTimeline = document.getElementById('dailyOpsTimeline');
+
+  if (opsDate) opsDate.textContent = new Date(`${data.date}T00:00:00`).toLocaleDateString('pt-BR');
+  if (opsMachinesCount) opsMachinesCount.textContent = `${activeMachines.length} maquinas ativas`;
+  if (opsMachineCards) opsMachineCards.innerHTML = machineCardsHtml;
+  if (opsTimeline) opsTimeline.innerHTML = timelineHtml;
+}
+
 export async function renderDailyView() {
   const state = getState();
   const data = await api.getDaily({
@@ -200,10 +221,7 @@ export async function renderDailyView() {
     }
   );
 
-  document.getElementById('dailyMachineCards').innerHTML = data.machines.map(machineCard).join('');
-  document.getElementById('dailyTimeline').innerHTML = data.timeline.length
-    ? data.timeline.map(timelineCard).join('')
-    : '<p class="inline-feedback">Nenhum evento registrado para o dia selecionado.</p>';
+  renderDailyOperationalPanels(data);
 
   return data;
 }

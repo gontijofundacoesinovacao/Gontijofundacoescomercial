@@ -252,6 +252,10 @@ select {
   grid-template-columns: minmax(0, 1.5fr) minmax(340px, 0.95fr);
 }
 
+.panel-grid--ops-split {
+  grid-template-columns: minmax(0, 3fr) minmax(320px, 1fr);
+}
+
 .panel {
   border-radius: var(--radius-lg);
   padding: 22px;
@@ -783,6 +787,10 @@ select {
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
 }
 
+.panel-grid--secondary-tv-split {
+  grid-template-columns: minmax(0, 3fr) minmax(320px, 1fr);
+}
+
 .rank-card,
 .timeline-card,
 .alert-card {
@@ -1019,8 +1027,16 @@ select {
   display: none;
 }
 
+.tv-mode .daily-desktop-panels {
+  display: none;
+}
+
 .tv-mode .machine-card-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.tv-mode .secondary-tv-ops .machine-card-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .tv-mode .panel,

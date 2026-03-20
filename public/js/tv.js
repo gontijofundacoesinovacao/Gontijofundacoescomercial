@@ -18,8 +18,8 @@ export async function initTvMode(screen) {
 
   if (screen === 'primary-tv') {
     const config = await api.getDisplayConfig('primary');
-    const renderers = [() => renderDailyView(), () => renderWeeklyView()];
-    const views = ['dailyView', 'weeklyView'];
+    const renderers = [() => renderDailyView(), () => renderDailyView(), () => renderWeeklyView()];
+    const views = ['dailyView', 'dailyOpsView', 'weeklyView'];
     let index = 0;
 
     async function rotate() {
