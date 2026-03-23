@@ -5,6 +5,10 @@ function todayString() {
   return new Date().toLocaleDateString('en-CA');
 }
 
+function isIsoDate(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
+}
+
 function weekValueFromDate(dateString) {
   const date = new Date(`${dateString}T00:00:00`);
   const day = (date.getDay() + 6) % 7;
@@ -25,13 +29,17 @@ function loadStored() {
 }
 
 const stored = loadStored();
-const initialDate = stored.date || todayString();
+const currentDate = todayString();
+const shouldUseCurrentDate = !isIsoDate(stored.date) || stored.date !== currentDate;
+const initialDate = shouldUseCurrentDate ? currentDate : stored.date;
+const initialWeekInput =
+  shouldUseCurrentDate || !stored.weekInput ? weekValueFromDate(initialDate) : stored.weekInput;
 
 const state = {
   activeView: 'daily',
   clientLogin: stored.clientLogin || 'cgontijo',
   date: initialDate,
-  weekInput: stored.weekInput || weekValueFromDate(initialDate),
+  weekInput: initialWeekInput,
   screen: new URLSearchParams(window.location.search).get('screen') || '',
 };
 
