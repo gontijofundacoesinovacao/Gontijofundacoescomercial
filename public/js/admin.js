@@ -177,6 +177,15 @@ function warningChip(text, tone) {
   return `<span class="goal-warning-chip ${tone}">${text}</span>`;
 }
 
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function fillForm(item) {
   document.getElementById('mappingIdInput').value = item?.id || '';
   document.getElementById('mappingImeiInput').value = item?.imei || '';
@@ -350,6 +359,18 @@ export async function initAdminModule() {
           ...row.errors.map((item) => warningChip(item, 'error')),
         ].join('');
 
+        const rawTextHtml = `
+          <div class="goal-ocr-box">
+            <label class="goal-ocr-box__label">
+              Texto livre do OCR
+              <textarea class="goal-ocr-box__textarea" data-row-index="${rowIndex}" data-row-field="ocr_raw_text" rows="7">${escapeHtml(row.ocr_raw_text || '')}</textarea>
+            </label>
+            <div class="table-actions">
+              <button class="mini-button" type="button" data-row-index="${rowIndex}" data-action="apply-ocr-text">Aplicar texto</button>
+            </div>
+          </div>
+        `;
+
         return `
           <tr>
             <td><input data-row-index="${rowIndex}" data-row-field="date" type="date" value="${row.date || ''}" /></td>
@@ -366,6 +387,7 @@ export async function initAdminModule() {
               <small>Planilha: ${row.meta_meq_informado == null ? '-' : formatNumber(row.meta_meq_informado, 2)}</small>
             </td>
             <td>${segmentsHtml}</td>
+            <td>${rawTextHtml}</td>
             <td><div class="goal-warnings">${warningsHtml || '<span class="goal-warning-chip warning">Sem alertas.</span>'}</div></td>
             <td>
               <div class="table-actions">
@@ -571,6 +593,32 @@ export async function initAdminModule() {
 
     if (button.dataset.action === 'add-segment') {
       currentImport.rows[rowIndex].segments.push(createEmptySegment());
+    }
+
+    if (button.dataset.action === 'apply-ocr-text') {
+      importFeedback('Reinterpretando texto OCR...', 'neutral');
+      api
+        .parseGoalTextRow({
+          rawText: currentImport.rows[rowIndex].ocr_raw_text || '',
+          importId: currentImport.import_id,
+          fileName: currentImport.source_file_name,
+        })
+        .then((response) => {
+          if (response.item) {
+            currentImport.rows[rowIndex] = {
+              ...response.item,
+              id: currentImport.rows[rowIndex].id || response.item.id,
+            };
+            renderGoalImportRows();
+            importFeedback('Texto OCR reaplicado na linha.', 'success');
+          } else {
+            importFeedback('Nenhuma linha foi reconhecida a partir do texto informado.', 'error');
+          }
+        })
+        .catch((error) => {
+          importFeedback(error.message, 'error');
+        });
+      return;
     }
 
     if (button.dataset.action === 'remove-segment') {

@@ -95,6 +95,12 @@ export const api = {
       body: JSON.stringify(payload),
     });
   },
+  parseGoalTextRow(payload) {
+    return request('/api/admin/goal-imports/parse-row', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
   confirmGoalImport(payload) {
     return request('/api/admin/goal-imports/confirm', {
       method: 'POST',

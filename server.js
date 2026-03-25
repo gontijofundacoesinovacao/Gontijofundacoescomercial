@@ -7,7 +7,7 @@ const dotenv = require("dotenv");
 const PDFDocument = require("pdfkit");
 const adminStore = require("./lib/admin-store");
 const goalTargetStore = require("./lib/goal-target-store");
-const { parseGoalImportImage, normalizeGoalRows } = require("./lib/goal-import-service");
+const { parseGoalImportImage, parseGoalImportText, normalizeGoalRows } = require("./lib/goal-import-service");
 const { parseDiameterCm, getMeqFactor } = require("./lib/meq");
 const {
   buildDailyDashboard,
@@ -1379,6 +1379,41 @@ app.post("/api/admin/goal-imports/parse", requireAdmin, async (req, res) => {
     return res.status(400).json({
       ok: false,
       message: "Falha ao ler a imagem de metas.",
+      details: error.message,
+    });
+  }
+});
+
+app.post("/api/admin/goal-imports/parse-row", requireAdmin, async (req, res) => {
+  try {
+    const rawText = String(req.body?.rawText || "");
+    const sourceImageId = String(req.body?.importId || "");
+    const sourceFileName = String(req.body?.fileName || "");
+
+    if (!rawText.trim()) {
+      return res.status(400).json({
+        ok: false,
+        message: "Texto OCR obrigatorio para reinterpretar a linha.",
+      });
+    }
+
+    const machines = await adminStore.listMachines();
+    const rows = parseGoalImportText({
+      rawText,
+      machines,
+      sourceImageId,
+      sourceFileName,
+    });
+
+    return res.json({
+      ok: true,
+      item: rows[0] || null,
+      items: rows,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      ok: false,
+      message: "Falha ao reinterpretar o texto OCR.",
       details: error.message,
     });
   }
