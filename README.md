@@ -6,7 +6,7 @@ Dashboard operacional com:
 - `Acumulado Semanal`
 - `Analises Operacionais`
 - `Admin` com vinculo `IMEI -> maquina -> obra` e metas diaria/semanal
-- `Admin` com importacao de metas semanais por foto via Gemini, revisao e confirmacao manual
+- `Admin` com importacao de metas semanais por foto via Tesseract OCR, revisao e confirmacao manual
 
 ## Stack
 
@@ -31,8 +31,10 @@ Principais:
 - `ADMIN_PASSWORD`
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `GEMINI_API_KEY`
-- `GEMINI_MODEL`
+- `TESSERACT_PATH`
+- `TESSDATA_PREFIX`
+- `TESSERACT_LANG`
+- `TESSERACT_PSM`
 - `CORS_ORIGIN`
 - `TV_ROTATION_SECONDS`
 - `TV_SECONDARY_ROTATION_SECONDS`
@@ -44,6 +46,12 @@ Principais:
 npm install
 npm run dev
 ```
+
+Para a importacao de metas por imagem, instale o Tesseract no ambiente local.
+
+- Windows: instale o Tesseract OCR e, se necessario, configure `TESSERACT_PATH` apontando para `tesseract.exe`
+- Se o idioma `por` estiver fora da instalacao padrao, configure `TESSDATA_PREFIX` para a pasta que contem `por.traineddata`
+- Linux/Docker: o `Dockerfile` ja instala `tesseract-ocr` com idioma `por`
 
 Abra:
 
@@ -63,16 +71,20 @@ Abra:
 ## Deploy no Render
 
 - Para este projeto, prefira **Render com Docker** em vez do runtime Node nativo.
-- Motivo: o backend depende do conversor nativo `tools/sacibin2txt`, que eh um binario Linux 32-bit.
-- O repositório agora inclui:
+- Motivo: o backend depende do conversor nativo `tools/sacibin2txt`, que eh um binario Linux 32-bit, e do Tesseract OCR para leitura de imagens.
+- O repositorio agora inclui:
   - [Dockerfile](c:/Users/Gontijo/Desktop/extraido/Dockerfile)
   - [.dockerignore](c:/Users/Gontijo/Desktop/extraido/.dockerignore)
-- No Render:
-  - crie um **Web Service**
-  - selecione **Docker**
-  - mantenha o root na raiz do projeto
-  - configure as mesmas variaveis de ambiente do backend
-- O `Dockerfile` instala as bibliotecas 32-bit necessarias para o `sacibin2txt`.
+  - [render.yaml](c:/Users/Gontijo/Desktop/extraido/render.yaml)
+- Fluxo recomendado:
+  - suba este repositorio diretamente no Render como **Blueprint** ou **Web Service com Docker**
+  - mantenha backend e frontend juntos no mesmo servico
+  - nesse modo, nao precisa configurar `window.__APP_CONFIG__.apiBaseUrl`
+  - `CORS_ORIGIN` pode ficar vazio se tudo rodar no mesmo dominio do Render
+- Se usar Blueprint:
+  - o Render vai ler [render.yaml](c:/Users/Gontijo/Desktop/extraido/render.yaml)
+  - depois preencha no painel apenas as variaveis com `sync: false`
+- O `Dockerfile` instala as bibliotecas 32-bit necessarias para o `sacibin2txt` e o Tesseract com idioma `por`.
 
 ## Supabase
 

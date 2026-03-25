@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: gontijo-dashboard
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    autoDeployTrigger: commit
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: AWS_REGION
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_PREFIX_BASE
+        sync: false
+      - key: S3_CLIENT_LOGIN
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: TV_ROTATION_SECONDS
+        value: 300
+      - key: TV_SECONDARY_ROTATION_SECONDS
+        value: 120
+      - key: TV_AUTO_REFRESH_SECONDS
+        value: 60
