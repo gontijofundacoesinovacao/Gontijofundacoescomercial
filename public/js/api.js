@@ -19,7 +19,23 @@ async function request(path, options = {}) {
   });
 
   const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
+  const contentType = response.headers.get('content-type') || '';
+  const isJson = contentType.includes('application/json');
+  let data = null;
+
+  if (text && isJson) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error(`Resposta JSON invalida em ${buildApiUrl(path)}.`);
+    }
+  }
+
+  if (text && !isJson) {
+    const compactText = text.replace(/\s+/g, ' ').trim();
+    const preview = compactText.slice(0, 120);
+    throw new Error(`Resposta inesperada em ${buildApiUrl(path)}: HTTP ${response.status}${preview ? ` | ${preview}` : ''}`);
+  }
 
   if (!response.ok) {
     throw new Error(data?.details || data?.message || `Erro HTTP ${response.status}`);
